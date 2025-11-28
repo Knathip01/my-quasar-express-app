@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>Longan Price Map — Northern Thailand</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet CSS & JS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* กำหนดความสูงของแผนที่ */
+    #map {
+      height: 500px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+  <div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <!-- Header -->
+    <header class="space-y-2">
+      <h1 class="text-2xl md:text-3xl font-bold text-slate-900">
+        แผนที่ราคาลำไยภาคเหนือ (Longan Price Map)
+      </h1>
+      <p class="text-sm md:text-base text-slate-600">
+        แสดงจุดข้อมูลราคาลำไยในภาคเหนือของประเทศไทย พร้อมฟอร์มเพิ่มจุดใหม่และใช้
+        <span class="font-semibold">Leaflet.js + OpenStreetMap + Nominatim</span>
+      </p>
+      <p class="text-xs text-slate-500">
+        Student: <span class="font-semibold">STUDENT_NAME SURNAME - STUDENT_ID</span>
+        <!-- TODO: เปลี่ยนเป็นชื่อ-สกุล และรหัสนักศึกษาจริง -->
+      </p>
+    </header>
+
+    <!-- Layout -->
+    <div class="grid lg:grid-cols-2 gap-6">
+      <!-- Map Panel -->
+      <section
+        class="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 md:p-4 flex flex-col space-y-3"
+      >
+        <div class="flex items-center justify-between">
+          <h2 class="font-semibold text-slate-800">
+            แผนที่ภาคเหนือของประเทศไทย (Leaflet + OSM)
+          </h2>
+          <span
+            class="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-xs px-3 py-1"
+          >
+            Zoom เริ่มต้น: 8
+          </span>
+        </div>
+        <div id="map" class="rounded-xl overflow-hidden border border-slate-200"></div>
+        <p class="text-xs text-slate-500">
+          * ใช้ OpenStreetMap tiles และ Leaflet.js แสดงพื้นที่ภาคเหนือของประเทศไทย
+        </p>
+      </section>
+
+      <!-- Form Panel -->
+      <section
+        class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-5 space-y-4"
+      >
+        <div class="space-y-1">
+          <h2 class="font-semibold text-slate-800">
+            เพิ่ม/แก้ไขจุดข้อมูล (Add / Update Marker)
+          </h2>
+          <p class="text-xs text-slate-500">
+            ถ้าไม่กรอก Latitude/Longitude ระบบจะใช้ Geocoding (Nominatim) จาก Province + Place
+            และแคชพิกัดไว้ใน Local Storage
+          </p>
+        </div>
+
+        <form id="locationForm" class="space-y-4">
+          <!-- Province / Place -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label
+                for="province"
+                class="block text-xs font-medium text-slate-700 mb-1"
+                >Province (จังหวัด)</label
+              >
+              <input
+                id="province"
+                type="text"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+                placeholder="เชียงใหม่ / ลำพูน / เชียงราย ฯลฯ"
+              />
+            </div>
+            <div>
+              <label
+                for="place"
+                class="block text-xs font-medium text-slate-700 mb-1"
+                >Place (สถานที่)</label
+              >
+              <input
+                id="place"
+                type="text"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+                placeholder="ตลาดสันทราย / ตลาดเมืองใหม่ ฯลฯ"
+              />
+            </div>
+          </div>
+
+          <!-- Price / Date -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label
+                for="price"
+                class="block text-xs font-medium text-slate-700 mb-1"
+                >Price (บาท/กก.)</label
+              >
+              <input
+                id="price"
+                type="number"
+                step="0.01"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+                placeholder="เช่น 35.50"
+              />
+            </div>
+            <div>
+              <label
+                for="date"
+                class="block text-xs font-medium text-slate-700 mb-1"
+                >Date (วันที่สำรวจ)</label
+              >
+              <input
+                id="date"
+                type="date"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+              />
+            </div>
+          </div>
+
+          <!-- Lat / Lng (optional manual) -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label
+                for="latitude"
+                class="block text-xs font-medium text-slate-700 mb-1"
+                >Latitude (ตัวเลือก)</label
+              >
+              <input
+                id="latitude"
+                type="number"
+                step="0.0001"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+                placeholder="ถ้าเว้นว่าง จะใช้ Geocoding"
+              />
+            </div>
+            <div>
+              <label
+                for="longitude"
+                class="block text-xs font-medium text-slate-700 mb-1"
+                >Longitude (ตัวเลือก)</label
+              >
+              <input
+                id="longitude"
+                type="number"
+                step="0.0001"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+                placeholder="ถ้าเว้นว่าง จะใช้ Geocoding"
+              />
+            </div>
+          </div>
+
+          <!-- Status + Button -->
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <p id="statusText" class="text-xs text-slate-500">
+              พร้อมเพิ่มจุดใหม่ลงบนแผนที่
+            </p>
+            <button
+              type="submit"
+              class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-medium shadow-sm hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-400"
+            >
+              เพิ่ม / อัปเดตจุด (Add / Update Marker)
+            </button>
+          </div>
+        </form>
+
+        <div class="border-t border-slate-200 pt-3">
+          <h3 class="text-xs font-semibold text-slate-700 mb-1">
+            ตัวอย่างข้อมูลเริ่มต้น (Initial examples)
+          </h3>
+          <ul class="text-xs text-slate-600 list-disc list-inside space-y-1">
+            <li>
+              เชียงใหม่ — (18.7883, 98.9853) |
+              ราคา <span class="font-mono">35.50</span> บาท |
+              วันที่ <span class="font-mono">2023-08-15</span>
+            </li>
+            <li>
+              ตลาดสันทราย-เชียงใหม่ — (18.8056, 99.0105) |
+              ราคา <span class="font-mono">35.50</span> บาท |
+              วันที่ <span class="font-mono">2023-08-15</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // -----------------------------
+    // การตั้งค่าพื้นฐาน
+    // -----------------------------
+    const GEO_CACHE_KEY = "longan_geocode_cache_v1";
+    let geoCache = loadGeoCache();
+
+    // เก็บ marker ทั้งหมด + mapping ตาม key (province|place)
+    const markers = [];
+    const markersByKey = {};
+
+    const statusTextEl = document.getElementById("statusText");
+
+    // -----------------------------
+    // ฟังก์ชัน Local Storage Cache
+    // -----------------------------
+    function loadGeoCache() {
+      try {
+        const raw = localStorage.getItem(GEO_CACHE_KEY);
+        if (!raw) return {};
+        return JSON.parse(raw);
+      } catch (err) {
+        console.error("Cannot load geo cache:", err);
+        return {};
+      }
+    }
+
+    function saveGeoCache() {
+      try {
+        localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(geoCache));
+      } catch (err) {
+        console.error("Cannot save geo cache:", err);
+      }
+    }
+
+    function makeLocationKey(province, place) {
+      const p = (province || "").trim().toLowerCase();
+      const pl = (place || "").trim().toLowerCase();
+      return p + "|" + pl;
+    }
+
+    // -----------------------------
+    // ฟังก์ชัน Geocoding (Nominatim)
+    // -----------------------------
+    async function geocodePlace(province, place) {
+      if (!province && !place) {
+        throw new Error("ต้องกรอก Province หรือ Place อย่างน้อยหนึ่งค่า");
+      }
+
+      const key = makeLocationKey(province, place);
+
+      // 1) เช็ค cache ก่อน
+      if (geoCache[key]) {
+        return geoCache[key];
+      }
+
+      // 2) ถ้าไม่อยู่ใน cache ให้เรียก Nominatim
+      const queryText = [place, province, "Thailand"].filter(Boolean).join(", ");
+      const url =
+        "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
+        encodeURIComponent(queryText);
+
+      statusTextEl.textContent = "กำลังค้นหาพิกัดจาก Nominatim...";
+
+      const res = await fetch(url, {
+        headers: {
+          // Nominatim แนะนำให้มี header User-Agent หรือ Referer
+          // แต่จากเบราว์เซอร์จะใช้ค่าจาก browser อัตโนมัติ
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error("Nominatim response not OK");
+      }
+
+      const data = await res.json();
+      if (!data || data.length === 0) {
+        throw new Error("ไม่พบพิกัดจากชื่อสถานที่ที่ระบุ");
+      }
+
+      const lat = parseFloat(data[0].lat);
+      const lng = parseFloat(data[0].lon);
+
+      const coords = { lat, lng };
+      geoCache[key] = coords;
+      saveGeoCache();
+
+      return coords;
+    }
+
+    // -----------------------------
+    // สร้างแผนที่ Leaflet
+    // -----------------------------
+    const map = L.map("map").setView([18.7883, 98.9853], 8); // โฟกัสภาคเหนือ
+
+    // เพิ่ม tile layer จาก OpenStreetMap
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    // ไอคอนเข็มหมุดสีเขียว
+    const greenIcon = new L.Icon({
+      iconUrl:
+        "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
+      shadowUrl:
+        "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41],
+    });
+
+    // -----------------------------
+    // การจัดการ Marker
+    // -----------------------------
+    function buildLocationLabel(province, place) {
+      const p = (province || "").trim();
+      const pl = (place || "").trim();
+      if (pl && p) return pl + "-" + p;
+      if (pl) return pl;
+      return p;
+    }
+
+    function formatPrice(price) {
+      const num = Number(price);
+      if (Number.isNaN(num)) return price;
+      return num.toFixed(2);
+    }
+
+    function addOrUpdateMarker({
+      province,
+      place,
+      price,
+      date,
+      lat,
+      lng,
+      withStudentLabel = false,
+    }) {
+      const key = makeLocationKey(province, place);
+      const locationLabel = buildLocationLabel(province, place);
+
+      let popupHtml =
+        locationLabel +
+        " | ราคา " +
+        formatPrice(price) +
+        " บาท | วันที่ " +
+        date;
+
+      if (withStudentLabel) {
+        popupHtml +=
+          '<br/><span style="font-size: 11px; color: #64748b;">STUDENT_NAME SURNAME - STUDENT_ID</span>';
+        // TODO: เปลี่ยนเป็นชื่อ-สกุล และรหัสนักศึกษาจริง
+      }
+
+      if (markersByKey[key]) {
+        // อัปเดต marker เดิม
+        const marker = markersByKey[key];
+        marker.setLatLng([lat, lng]);
+        marker.data = { province, place, price, date, lat, lng };
+        marker.setPopupContent(popupHtml);
+      } else {
+        // สร้าง marker ใหม่
+        const marker = L.marker([lat, lng], { icon: greenIcon }).addTo(map);
+        marker.data = { province, place, price, date, lat, lng };
+        marker.bindPopup(popupHtml);
+
+        markers.push(marker);
+        markersByKey[key] = marker;
+      }
+
+      // ปรับขอบเขตแผนที่ให้เห็นทุกจุด
+      updateMapBounds();
+    }
+
+    function updateMapBounds() {
+      if (markers.length === 0) return;
+
+      const latlngs = markers.map((m) => m.getLatLng());
+      const bounds = L.latLngBounds(latlngs);
+
+      // ถ้ามีจุดเดียว ให้ซูมเข้าเล็กน้อย
+      if (latlngs.length === 1) {
+        map.setView(latlngs[0], 12);
+      } else {
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }
+
+    // -----------------------------
+    // เพิ่มตัวอย่างข้อมูลเริ่มต้น
+    // -----------------------------
+    function initSampleMarkers() {
+      // ตัวอย่าง 9.1: เชียงใหม่
+      addOrUpdateMarker({
+        province: "เชียงใหม่",
+        place: "",
+        price: 35.5,
+        date: "2023-08-15",
+        lat: 18.7883,
+        lng: 98.9853,
+        withStudentLabel: true, // ใส่ label ชื่อ-รหัสนักศึกษาไว้ที่จุดนี้
+      });
+
+      // ตัวอย่าง 9.2: ตลาดสันทราย-เชียงใหม่
+      addOrUpdateMarker({
+        province: "เชียงใหม่",
+        place: "ตลาดสันทราย",
+        price: 35.5,
+        date: "2023-08-15",
+        lat: 18.8056,
+        lng: 99.0105,
+        withStudentLabel: false,
+      });
+
+      statusTextEl.textContent = "โหลดตัวอย่างจุดข้อมูลเริ่มต้นแล้ว";
+    }
+
+    initSampleMarkers();
+
+    // -----------------------------
+    // จัดการฟอร์มเพิ่ม/อัปเดตจุด
+    // -----------------------------
+    const formEl = document.getElementById("locationForm");
+    const provinceInput = document.getElementById("province");
+    const placeInput = document.getElementById("place");
+    const priceInput = document.getElementById("price");
+    const dateInput = document.getElementById("date");
+    const latInput = document.getElementById("latitude");
+    const lngInput = document.getElementById("longitude");
+
+    formEl.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      let province = provinceInput.value.trim();
+      let place = placeInput.value.trim();
+      let price = priceInput.value.trim();
+      let date = dateInput.value;
+      const latStr = latInput.value.trim();
+      const lngStr = lngInput.value.trim();
+
+      if (!province && !place) {
+        alert("กรุณากรอก Province หรือ Place อย่างน้อยหนึ่งค่า");
+        return;
+      }
+
+      if (!price) {
+        price = "0";
+      }
+
+      if (!date) {
+        // ถ้าไม่เลือกวันที่ จะใช้วันที่วันนี้
+        date = new Date().toISOString().slice(0, 10);
+      }
+
+      statusTextEl.textContent = "กำลังเพิ่ม/อัปเดตจุด...";
+
+      try {
+        let lat, lng;
+
+        if (latStr && lngStr) {
+          // ใช้ค่าพิกัดที่ผู้ใช้กรอกเอง
+          lat = parseFloat(latStr);
+          lng = parseFloat(lngStr);
+
+          if (Number.isNaN(lat) || Number.isNaN(lng)) {
+            throw new Error("Latitude / Longitude ไม่ถูกต้อง");
+          }
+        } else {
+          // ใช้ Geocoding จาก Nominatim
+          const coords = await geocodePlace(province, place);
+          lat = coords.lat;
+          lng = coords.lng;
+        }
+
+        addOrUpdateMarker({
+          province,
+          place,
+          price,
+          date,
+          lat,
+          lng,
+          withStudentLabel: false,
+        });
+
+        statusTextEl.textContent =
+          "เพิ่ม/อัปเดตจุดเรียบร้อยแล้ว และปรับขอบเขตแผนที่ให้เห็นทุกจุด";
+
+        // จะล้างฟอร์มหรือไม่ล้างก็ได้ แล้วแต่โจทย์
+        // ที่นี่ล้างแค่ Lat/Lng เพื่อให้ลองใช้ geocoding รอบต่อไป
+        latInput.value = "";
+        lngInput.value = "";
+      } catch (err) {
+        console.error(err);
+        alert("เกิดข้อผิดพลาด: " + err.message);
+        statusTextEl.textContent = "เกิดข้อผิดพลาดในการเพิ่มจุด / Geocoding";
+      }
+    });
+  </script>
+</body>
+</html>
