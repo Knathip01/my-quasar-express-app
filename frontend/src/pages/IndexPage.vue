@@ -1,109 +1,70 @@
 <template>
   <q-page padding>
     <div class="text-h4 q-mb-md">
-      Advanced Full-Stack Demo (Quasar + Express)
+      Task List (Express + Prisma + Supabase)
     </div>
 
-    <!-- Git Workflow (จากตัวอย่างก่อน) -->
-    <q-card class="q-mb-md">
-      <q-card-section>
-        <div class="text-h6">Git Workflow</div>
-        <q-list bordered separator class="q-mt-sm">
-          <q-item v-for="(step, index) in gitSteps" :key="index">
-            <q-item-section avatar>
-              <q-badge>{{ index + 1 }}</q-badge>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label>{{ step.git.title }}</q-item-label>
-              <q-item-label caption>{{ step.git.detail }}</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card-section>
-    </q-card>
+    <div class="q-mb-md row items-center q-gutter-sm">
+      <q-btn
+        color="primary"
+        label="Reload Tasks"
+        :loading="loading"
+        @click="fetchTasks"
+      />
+      <span v-if="errorMessage" class="text-negative">
+        {{ errorMessage }}
+      </span>
+    </div>
 
-    <!-- Docker Concepts (จากตัวอย่างก่อน) -->
-    <q-card class="q-mb-md">
-      <q-card-section>
-        <div class="text-h6">Docker Concepts</div>
-        <q-list bordered separator class="q-mt-sm">
-          <q-item v-for="(item, index) in dockerItems" :key="index">
-            <q-item-section>
-              <q-item-label>{{ item.docker.title }}</q-item-label>
-              <q-item-label caption>{{ item.docker.detail }}</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card-section>
-    </q-card>
+    <q-spinner v-if="loading" color="primary" size="2em" />
 
-    <!-- New: API Data from Backend -->
-    <q-card>
-      <q-card-section>
-        <div class="text-h6">Data from Backend API</div>
-        <q-spinner v-if="loading" color="primary" size="2em" />
-        <q-list v-else bordered separator class="q-mt-sm">
-          <q-item>
-            <q-item-section>
-              <q-item-label>Advanced Git</q-item-label>
-              <q-item-label caption>{{ apiData.git.detail }}</q-item-label>
-            </q-item-section>
-          </q-item>
-          <q-item>
-            <q-item-section>
-              <q-item-label>Advanced Docker</q-item-label>
-              <q-item-label caption>{{ apiData.docker.detail }}</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-        <q-btn v-if="!loading" color="primary" @click="fetchData"
-          >Refresh Data</q-btn
-        >
-      </q-card-section>
-    </q-card>
+    <div v-else>
+      <div v-if="tasks.length === 0" class="text-grey">
+        ยังไม่มีงานในระบบ ลองสร้างด้วย curl / Postman ก่อน
+      </div>
+
+      <q-list v-else bordered separator>
+        <q-item v-for="task in tasks" :key="task.id">
+          <q-item-section>
+            <q-item-label>{{ task.title }}</q-item-label>
+            <q-item-label caption>{{ task.description }}</q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-item-label caption>
+              {{ new Date(task.createdAt).toLocaleString() }}
+            </q-item-label>
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </div>
   </q-page>
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
-import axios from "axios";
+import { ref, onMounted } from 'vue';
+import axios from 'axios';
 
-// จากตัวอย่างก่อน
-const gitSteps = [
-  {
-    git: {
-      title: "Advanced Git Workflow",
-      detail:
-        "ใช้ branch protection บน GitHub, code review ใน PR, และ squash merge เพื่อ history สะอาด",
-    },
-  },
-];
-const dockerItems = [
-  {
-    docker: {
-      title: "Advanced Docker",
-      detail:
-        "ใช้ multi-stage build, healthcheck ใน Dockerfile, และ orchestration ด้วย Compose/Swarm",
-    },
-  },
-];
+// อ่านค่าจาก quasar.config → env.API_URL
+const API_URL = process.env.API_URL || 'http://localhost:3000';
 
-const apiData = ref({ git: {}, docker: {} });
-const loading = ref(true);
+const tasks = ref([]);
+const loading = ref(false);
+const errorMessage = ref('');
 
-const fetchData = async () => {
+const fetchTasks = async () => {
   loading.value = true;
+  errorMessage.value = '';
+
   try {
-    const response = await axios.get(
-      import.meta.env.VITE_API_URL + "/api/demo"
-    );
-    apiData.value = response.data;
-  } catch (error) {
-    console.error("API Error:", error);
+    const res = await axios.get(API_URL + '/api/tasks');
+    tasks.value = res.data.data; // backend ส่ง { data: [...] }
+  } catch (err) {
+    console.error('API /api/tasks error:', err);
+    errorMessage.value = 'โหลดงานจากฐานข้อมูลไม่สำเร็จ';
   } finally {
     loading.value = false;
   }
 };
 
-onMounted(fetchData);
+onMounted(fetchTasks);
 </script>
