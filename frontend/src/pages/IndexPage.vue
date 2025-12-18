@@ -60,7 +60,7 @@ const fetchTasks = async () => {
     tasks.value = res.data.data; // backend ส่ง { data: [...] }
   } catch (err) {
     console.error('API /api/tasks error:', err);
-    errorMessage.value = 'โหลดงานจากฐานข้อมูลไม่สำเร็จ';
+    errorMessage.value = 'โหลดงานจากฐานข้อมูลไม่สำเร็จ: ' + (err.response?.data?.message || err.message);
   } finally {
     loading.value = false;
   }

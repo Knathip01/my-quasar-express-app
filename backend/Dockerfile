@@ -1,27 +1,54 @@
-# Stage 1: Build
+# backend/Dockerfile
 FROM node:20-alpine AS builder
-
 WORKDIR /app
 
+# Copy package files
 COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install dependencies (including devDependencies for build)
 RUN npm ci
 
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Copy source code
 COPY . .
 
-# Stage 2: Production
-FROM node:20-alpine
+# Build TypeScript
+RUN npm run build
 
+# --- Runtime Stage ---
+FROM node:20-alpine
 WORKDIR /app
 
-COPY --from=builder /app /app
+# Copy package files and install production dependencies only
+COPY package*.json ./
+COPY prisma ./prisma/
 
-# Create logs dir
-RUN mkdir -p logs
+# Install production deps
+RUN npm ci --production
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:4000/api/demo || exit 1
+# Generate Prisma Client again for production environment (Alpine to Alpine should be fine, but good practice)
+RUN npx prisma generate
 
-EXPOSE 4000
+# Copy built application from builder
+COPY --from=builder /app/dist ./dist
 
-CMD ["node", "service.js"]
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Healthcheck on port 3000
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -fsS http://localhost:3000/api/demo || curl -fsS http://localhost:3000/ || exit 1
+
+EXPOSE 3000
+
+# Start the compiled server
+CMD ["node", "dist/server.js"]
